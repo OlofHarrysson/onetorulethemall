@@ -1,9 +1,6 @@
 import torch
 from utils.utils import ProgressbarWrapper as Pbar
 
-
-# TODO: build targets whilst gpu is working on model? Need any sizes?
-# TODO: assert stuff. Assert image size is divisible by 32
 class Controller(object):
   def __init__(self, model, dataloader):
     super(Controller, self).__init__()
