@@ -21,13 +21,12 @@ class Controller(object):
       for batch_i, data in enumerate(self.dataloader.get_loader(), 1):
         pbar.update(epoch, batch_i)
 
-        inputs, labels, _ = data
+        inputs, labels = data
         image_size = inputs.size(2)
 
-        print(image_size)
 
         # optimizer.zero_grad()
-        # outputs = model(inputs)
+        outputs = model(inputs)
 
         # losses = model.calc_loss(outputs, labels, image_size)
         # sum_loss = sum(losses.values())
@@ -35,5 +34,5 @@ class Controller(object):
         # optimizer.step()
         # optim_steps += 1
 
-        del outputs # Frees up GPU memory
-        del sum_loss
+        # del outputs # Frees up GPU memory
+        # del sum_loss

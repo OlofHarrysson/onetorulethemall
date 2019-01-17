@@ -1,9 +1,15 @@
 import torch
 import torchvision
+from torchvision import transforms
 
 class Dataloader():
   def __init__(self):
-    trainset = torchvision.datasets.CIFAR10(root='./datasets', train=True, download=True)
+    transform = transforms.Compose([
+      transforms.ToTensor()
+    ])
+
+
+    trainset = torchvision.datasets.CIFAR10(root='./datasets', train=True, transform=transform)
     
     self.trainloader = torch.utils.data.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=0)
 
