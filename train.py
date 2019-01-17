@@ -6,8 +6,8 @@ def main():
   dataloader = Dataloader()
   
   # Create model
-  # model = Mymodel()
-  model = Baseline()
+  model = Mymodel()
+  # model = Baseline()
   controller = Controller(model, dataloader)
   controller.train()
 
