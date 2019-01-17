@@ -1,4 +1,4 @@
-from model import Mymodel
+from model import Mymodel, Baseline
 from controller import Controller
 from dataloader import Dataloader
 
@@ -6,7 +6,8 @@ def main():
   dataloader = Dataloader()
   
   # Create model
-  model = Mymodel()
+  # model = Mymodel()
+  model = Baseline()
   controller = Controller(model, dataloader)
   controller.train()
 
