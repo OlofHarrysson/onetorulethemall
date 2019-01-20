@@ -2,6 +2,7 @@ from resnet import resnet18
 import torch.nn as nn
 import numpy as np
 from collections import defaultdict
+from logger import Logger
 
 class Mymodel(nn.Module):
   def __init__(self):
@@ -20,7 +21,10 @@ class Mymodel(nn.Module):
 
     n_pred_layers = 4
     self.pred_weights = np.full((n_pred_layers, n_classes), 1/4)
-    print(self.pred_weights)
+    # print(self.pred_weights)
+
+
+    self.logger = Logger()
 
   def predict(self, preds, labels):
     acc = []
@@ -66,6 +70,8 @@ class Mymodel(nn.Module):
     # If a layer predicts highly for the wrong class we want to decrease that prediction. But do we want to increase the right class? Then we are forcing every layer to learn everything which we wrote above that we didn't want to. On the other hand, if we never increase the right answer then how could we prevent a sitation that a layer was unlucky in the beginning/filters change and we never give it a chance to recover?
 
     # If a layer makes a right prediction, with like 0.8 prob we want to increase that to 0.9 - so here we have a loss for that layer+class combo.
+
+    # Could be useful to plot the loss in the different layers as training progress. If one layer is way worse than
 
 
 
@@ -127,6 +133,11 @@ class Mymodel(nn.Module):
     losses = []
     for pred in preds:
       losses.append(ce_loss(pred, labels))
+
+    print("HEJEJJE")
+    loss = losses[0].item()
+    loss = np.array(loss).reshape(1, -1)
+    self.logger.save_loss(loss)
 
     return losses
 
