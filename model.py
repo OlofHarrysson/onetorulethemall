@@ -5,9 +5,10 @@ from collections import defaultdict
 from logger import Logger
 
 class Mymodel(nn.Module):
-  def __init__(self):
+  def __init__(self, classes):
     super(Mymodel, self).__init__()
-    n_classes = 10
+    self.classes = classes
+    n_classes = len(classes)
     self.resnet18 = resnet18(num_classes=n_classes)
     self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
     self.softmax = nn.Softmax()
@@ -26,7 +27,7 @@ class Mymodel(nn.Module):
 
     self.logger = Logger()
 
-  def predict(self, preds, labels):
+  def predict(self, preds, labels, step):
     acc = []
     w_preds = []
     numpy_preds = []
@@ -60,8 +61,12 @@ class Mymodel(nn.Module):
       print('nooooop')
     # print('Weighted Acc: {}. Mean Acc: {}'.format(w_acc, mean_acc))
 
+    self.logger.log_accuracy(w_acc, step)
 
     self.update_pred_weights(numpy_preds, labels)
+
+    self.logger.log_heatmap(self.pred_weights, self.classes)
+
 
   def handle_back_prob(self):
     pass
@@ -71,15 +76,11 @@ class Mymodel(nn.Module):
 
     # If a layer makes a right prediction, with like 0.8 prob we want to increase that to 0.9 - so here we have a loss for that layer+class combo.
 
-    # Could be useful to plot the loss in the different layers as training progress. If one layer is way worse than
 
 
 
 
   def update_pred_weights(self, preds, labels):
-    # We want to update weight matrix per layer per class
-    # After that normalize but that should be easy
-
     weights = self.pred_weights
 
     # The minimum multiplier. Decrease to change weights faster
@@ -127,17 +128,18 @@ class Mymodel(nn.Module):
     return class_preds
 
 
-  def calc_loss(self, preds, labels):
+  def calc_loss(self, preds, labels, step):
+    # TODO: Loss lambdas?
     ce_loss = nn.CrossEntropyLoss()
     
     losses = []
-    for pred in preds:
+    for loss_lambda, pred in enumerate(preds):
+      # losses.append(loss_lambda * ce_loss(pred, labels))
       losses.append(ce_loss(pred, labels))
 
-    print("HEJEJJE")
     loss = losses[0].item()
     loss = np.array(loss).reshape(1, -1)
-    self.logger.save_loss(loss)
+    self.logger.save_loss(loss, step)
 
     return losses
 

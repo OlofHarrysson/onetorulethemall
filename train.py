@@ -5,8 +5,9 @@ from dataloader import Dataloader
 def main():
   dataloader = Dataloader()
   
+  classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
   # Create model
-  model = Mymodel()
+  model = Mymodel(classes)
   # model = Baseline()
   controller = Controller(model, dataloader)
   controller.train()

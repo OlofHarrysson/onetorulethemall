@@ -9,7 +9,6 @@ class Controller(object):
 
   def train(self):
     model = self.model
-    classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
     optimizer = torch.optim.Adam(model.parameters())
 
     n_epochs = 3
@@ -26,15 +25,14 @@ class Controller(object):
         optimizer.zero_grad()
         outputs = model(inputs)
         
-        model.predict(outputs, labels)
+        model.predict(outputs, labels, optim_steps)
 
-
-
-        losses = model.calc_loss(outputs, labels)
+        losses = model.calc_loss(outputs, labels, optim_steps)
 
         sum_loss = sum(losses)
         sum_loss.backward()
         optimizer.step()
 
+        optim_steps += 1
         del outputs # Frees up GPU memory
         del sum_loss
