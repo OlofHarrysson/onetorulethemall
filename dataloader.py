@@ -11,7 +11,7 @@ class Dataloader():
 
     trainset = torchvision.datasets.CIFAR10(root='./datasets', train=True, transform=transform)
     
-    self.trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, num_workers=0)
+    self.trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=0)
 
   def get_loader(self):
     return self.trainloader
