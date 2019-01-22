@@ -49,7 +49,8 @@ class Logger():
 
 
   def log_accuracy_per_layer(self, accuracies, step):
-    accuracies = np.array(accuracies)
+    accuracies = np.array(accuracies).reshape(-1, 1).T
+
     opts = dict(title='Accuracy per Layer')
     self.viz.line(X=[step], Y=accuracies, update='append', win='Accuracy Per Layer', opts=opts)
 

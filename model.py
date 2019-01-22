@@ -4,6 +4,8 @@ import torch.nn as nn
 import numpy as np
 from collections import defaultdict
 
+# TODO: Batchnorm in branches
+
 class Mymodel(nn.Module):
   def __init__(self, classes, logger, device):
     super(Mymodel, self).__init__()
@@ -18,6 +20,11 @@ class Mymodel(nn.Module):
     fc3 = nn.Linear(256, n_classes)
     fc4 = nn.Linear(512, n_classes)
 
+    b1 = nn.Conv2d(64, 64, kernel_size=3)
+    b2 = nn.Conv2d(128, 128, kernel_size=3)
+    b3 = nn.Conv2d(256, 256, kernel_size=2) # TODO: To small fmap
+
+    self.branches = nn.Sequential(*[b1, b2, b3])
     self.fcs = nn.Sequential(*[fc1, fc2, fc3, fc4])
 
     n_pred_layers = 4
@@ -34,11 +41,18 @@ class Mymodel(nn.Module):
     fmaps = self.resnet18.forward(x)
 
     class_preds = []
-    for x, fc in zip(fmaps, self.fcs):
+    for x, fc, branch in zip(fmaps, self.fcs, self.branches):
+      x = branch(x)
       x = self.avgpool(x)
       x = x.view(x.size(0), -1)
       x = fc(x)
       class_preds.append(x)
+
+    x = fmaps[-1]
+    x = self.avgpool(x)
+    x = x.view(x.size(0), -1)
+    x = self.fcs[-1](x)
+    class_preds.append(x)
 
     return class_preds
 

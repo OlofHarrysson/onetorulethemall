@@ -15,7 +15,7 @@ def main():
   classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
   device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
+  # device = 'cpu'
 
   # Create model
   logger = Logger()
