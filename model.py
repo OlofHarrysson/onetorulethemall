@@ -79,6 +79,7 @@ class Mymodel(nn.Module):
     #   print('nooooop')
     # print('Weighted Acc: {}. Mean Acc: {}'.format(w_acc, mean_acc))
 
+    self.logger.log_accuracy_per_layer(acc, step)
     self.logger.log_accuracy(w_acc, step)
 
     self.update_pred_weights(numpy_preds, labels)
@@ -88,12 +89,20 @@ class Mymodel(nn.Module):
 
   def handle_back_prob(self):
     pass
-    # I don't want to force each layer to become good at every class. I want them to be able to specialize at one or a few classes. Thereby I can't enforce a huge loss when they fuck up badly like we normally do in back prop.
+    # [0.1 0.8<- 0.1] # Increase 0.8. Decrease 0.1s?
+    # [0.1<- 0.8 0.1] # Decrease 0.8. Don't increase right answer too much, a layer doesn't need to know every class.
+
+    # Can we simply increase/decrease the maximum value depending on if it's right or not? Probably not time-good when there are a lot of classes.
+
+    # I don't want to force each layer to become good at every class. I want them to be able to specialize at one or a few classes. Thereby I can't enforce a huge loss when they fuck up badly like we normally do in back prop. Somehow normalize the loss?
 
     # If a layer predicts highly for the wrong class we want to decrease that prediction. But do we want to increase the right class? Then we are forcing every layer to learn everything which we wrote above that we didn't want to. On the other hand, if we never increase the right answer then how could we prevent a sitation that a layer was unlucky in the beginning/filters change and we never give it a chance to recover?
 
     # If a layer makes a right prediction, with like 0.8 prob we want to increase that to 0.9 - so here we have a loss for that layer+class combo.
 
+    # Softmax might be bad in this situation. A layer should be able to express that it isn't sure on ANY class. What can we replace softmax with and would it help something? Sigmoid 0-1? Make sure it works with pred_weights
+
+    # Another idea would be to have the companion predictors not drive backprop but only do the best they've got given the feature maps they have. So only train the fully connected / small branch.
 
 
 
@@ -102,7 +111,7 @@ class Mymodel(nn.Module):
     weights = self.pred_weights
 
     # The minimum multiplier. Decrease to change weights faster
-    discount = 0.9
+    discount = 0.99
 
     labels = labels.numpy()
 
@@ -165,7 +174,7 @@ class Baseline(nn.Module):
   def predict(self, pred, labels, step):
     pred = pred.cpu()
     labels = labels.cpu()
-    
+
     pred = self.softmax(pred)
     values, indices = pred.max(1)
 

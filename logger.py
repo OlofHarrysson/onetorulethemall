@@ -2,11 +2,8 @@ import visdom
 import numpy as np
 
 
-# Could be useful to plot the loss in the different layers as training progress. If one layer is way worse than
-# Plot weight dominance by layer. Preferably so we can replay it, do this in stacked area graph as we do losses in yolov3
-# Plot accuracy
+# Replay weight dominance
 # Plot prediction certanty or something?
-# Heatmap of weights
 
 
 class Logger():
@@ -49,6 +46,12 @@ class Logger():
   def log_accuracy(self, data, step):
     opts = dict(title='Accuracy')
     self.viz.line(X=[step], Y=[data], update='append', win='Accuracy', opts=opts)
+
+
+  def log_accuracy_per_layer(self, accuracies, step):
+    accuracies = np.array(accuracies)
+    opts = dict(title='Accuracy per Layer')
+    self.viz.line(X=[step], Y=accuracies, update='append', win='Accuracy Per Layer', opts=opts)
 
 
   def log_heatmap(self, data, classes):
