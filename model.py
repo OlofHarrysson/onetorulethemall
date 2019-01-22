@@ -95,10 +95,10 @@ class Mymodel(nn.Module):
 
     self.logger.log_accuracy_per_layer(acc, step)
     self.logger.log_accuracy(w_acc, step)
+    self.logger.log_heatmap(self.pred_weights, self.classes)
 
     self.update_pred_weights(numpy_preds, labels)
 
-    self.logger.log_heatmap(self.pred_weights, self.classes)
 
 
   def handle_back_prob(self):

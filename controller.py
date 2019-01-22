@@ -17,7 +17,7 @@ class Controller(object):
 
     for name, par in model.named_parameters():
       attr_name = name.split('.')[0]
-      if attr_name == 'branches':
+      if attr_name == 'branches': oaisdoiasdj TODO or any other branch layer
         branch_params.append(par)
       else:
         other_params.append(par)

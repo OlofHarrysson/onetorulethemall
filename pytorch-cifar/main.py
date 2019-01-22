@@ -13,7 +13,8 @@ import torchvision.transforms as transforms
 import os
 import argparse
 
-from models import *
+from models.resnet import ResNet18
+from models.resnet_branch import ResNet18Branch
 from utils import progress_bar
 
 
@@ -40,32 +41,21 @@ transform_test = transforms.Compose([
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
 ])
 
-trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
+trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform_train)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
 
-testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
+testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_test)
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
 # Model
 print('==> Building model..')
-# net = VGG('VGG19')
-# net = ResNet18()
-# net = PreActResNet18()
-# net = GoogLeNet()
-# net = DenseNet121()
-# net = ResNeXt29_2x64d()
-# net = MobileNet()
-# net = MobileNetV2()
-# net = DPN92()
-# net = ShuffleNetG2()
-# net = SENet18()
-net = ShuffleNetV2(1)
+net = ResNet18Branch(classes)
 net = net.to(device)
-if device == 'cuda':
-    net = torch.nn.DataParallel(net)
-    cudnn.benchmark = True
+# if device == 'cuda':
+#     net = torch.nn.DataParallel(net)
+#     cudnn.benchmark = True
 
 if args.resume:
     # Load checkpoint.
@@ -76,67 +66,105 @@ if args.resume:
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
 
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+branch_params = []
+other_params = []
+for name, par in net.named_parameters():
+  attr_name = name.split('.')[0]
+  if attr_name == 'branches':
+    branch_params.append(par)
+  else:
+    other_params.append(par)
+
+
+optimizer = optim.SGD(other_params, lr=args.lr, momentum=0.9, weight_decay=5e-4)
+branch_optimizer = optim.SGD(branch_params, lr=args.lr, momentum=0.9, weight_decay=5e-4)
 
 # Training
-def train(epoch):
-    print('\nEpoch: %d' % epoch)
-    net.train()
-    train_loss = 0
-    correct = 0
-    total = 0
-    for batch_idx, (inputs, targets) in enumerate(trainloader):
-        inputs, targets = inputs.to(device), targets.to(device)
-        optimizer.zero_grad()
-        outputs = net(inputs)
-        loss = criterion(outputs, targets)
-        loss.backward()
-        optimizer.step()
+def train(epoch, optim_steps):
+  print('\nEpoch: %d' % epoch)
+  net.train()
+  net.set_logger_mode('train')
+  train_loss = 0
+  correct = 0
+  total = 0
+  for batch_idx, (inputs, targets) in enumerate(trainloader):
+    inputs, targets = inputs.to(device), targets.to(device)
+    optimizer.zero_grad()
+    branch_optimizer.zero_grad()
+    outputs = net(inputs)
+    loss = net.calc_loss(outputs, targets, optim_steps)
+    loss.backward()
+    optimizer.step()
+    branch_optimizer.step()
 
-        train_loss += loss.item()
-        _, predicted = outputs.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
+    train_loss += loss.item()
+    last_output = outputs[-1]
+    _, predicted = last_output.max(1)
+    total += targets.size(0)
+    correct += predicted.eq(targets).sum().item()
 
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+    progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
-def test(epoch):
-    global best_acc
-    net.eval()
-    test_loss = 0
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for batch_idx, (inputs, targets) in enumerate(testloader):
-            inputs, targets = inputs.to(device), targets.to(device)
-            outputs = net(inputs)
-            loss = criterion(outputs, targets)
 
-            test_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += targets.size(0)
-            correct += predicted.eq(targets).sum().item()
+    net.w_predict(outputs, targets, optim_steps, is_train=True)
+    optim_steps += 1
 
-            progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+    # if optim_steps % 10 == 0:
+    #   break
+    
+  return optim_steps
+
+def test(epoch, optim_steps):
+  global best_acc
+  net.eval()
+  net.set_logger_mode('val')
+  test_loss = 0
+  correct = 0
+  total = 0
+  w_correct = 0
+  with torch.no_grad():
+    for batch_idx, (inputs, targets) in enumerate(testloader):
+      inputs, targets = inputs.to(device), targets.to(device)
+      outputs = net(inputs)
+      loss = net.calc_loss(outputs, targets, optim_steps)
+
+      test_loss += loss.item()
+      last_output = outputs[-1]
+      _, predicted = last_output.max(1)
+      total += targets.size(0)
+      correct += predicted.eq(targets).sum().item()
+
+      progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+        % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+
+      w_correct += net.w_predict(outputs, targets, optim_steps)
+      optim_steps += 1
 
     # Save checkpoint.
-    acc = 100.*correct/total
+
+    acc = correct/total
+    w_acc = w_correct/total
+
+    net.log_accuracies(acc, w_acc, epoch)
+
+    acc *= 100. # They do it in percent
     if acc > best_acc:
-        print('Saving..')
-        state = {
-            'net': net.state_dict(),
-            'acc': acc,
-            'epoch': epoch,
-        }
-        if not os.path.isdir('checkpoint'):
-            os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/ckpt.t7')
-        best_acc = acc
+      print('Saving..')
+      state = {
+        'net': net.state_dict(),
+        'acc': acc,
+        'epoch': epoch,
+      }
+      if not os.path.isdir('checkpoint'):
+        os.mkdir('checkpoint')
+      torch.save(state, './checkpoint/ckpt.t7')
+      best_acc = acc
 
+  return optim_steps
 
+optim_steps = 0
+test_optim_steps = 0
 for epoch in range(start_epoch, start_epoch+200):
-    train(epoch)
-    test(epoch)
+  optim_steps = train(epoch, optim_steps)
+  test_optim_steps = test(epoch, test_optim_steps)
