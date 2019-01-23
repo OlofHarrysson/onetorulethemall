@@ -24,6 +24,7 @@ parser.add_argument('--resume', '-r', action='store_true', help='resume from che
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# device = 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 
@@ -61,10 +62,12 @@ if args.resume:
     # Load checkpoint.
     print('==> Resuming from checkpoint..')
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-    checkpoint = torch.load('./checkpoint/ckpt.t7')
+    # checkpoint = torch.load('./checkpoint/ckpt.t7')
+    checkpoint = torch.load('./checkpoint/trunk_only_85per_val.t7')
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
+
 
 branch_params = []
 other_params = []
@@ -76,28 +79,39 @@ for name, par in net.named_parameters():
     other_params.append(par)
 
 
-optimizer = optim.SGD(other_params, lr=args.lr, momentum=0.9, weight_decay=5e-4)
+# Train main "only"
+# optimizer = optim.SGD(other_params, lr=args.lr, momentum=0.9, weight_decay=5e-4)
 branch_optimizer = optim.SGD(branch_params, lr=args.lr, momentum=0.9, weight_decay=5e-4)
+
+
+# Train all layers
+# optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+# branch_optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
 
 # Training
 def train(epoch, optim_steps):
   print('\nEpoch: %d' % epoch)
   net.train()
   net.set_logger_mode('train')
+  net.reset_class_acc()
   train_loss = 0
   correct = 0
   total = 0
   for batch_idx, (inputs, targets) in enumerate(trainloader):
     inputs, targets = inputs.to(device), targets.to(device)
-    optimizer.zero_grad()
+    # optimizer.zero_grad()
     branch_optimizer.zero_grad()
     outputs = net(inputs)
-    loss = net.calc_loss(outputs, targets, optim_steps)
-    loss.backward()
-    optimizer.step()
+    trunk_loss = net.calc_trunk_loss(outputs[-1], targets, optim_steps)
+    branch_loss = net.calc_branch_loss(outputs[:-1], targets, optim_steps)
+
+    # trunk_loss.backward()
+    # optimizer.step()
+    
+    branch_loss.backward()
     branch_optimizer.step()
 
-    train_loss += loss.item()
+    train_loss += trunk_loss.item()
     last_output = outputs[-1]
     _, predicted = last_output.max(1)
     total += targets.size(0)
@@ -127,9 +141,9 @@ def test(epoch, optim_steps):
     for batch_idx, (inputs, targets) in enumerate(testloader):
       inputs, targets = inputs.to(device), targets.to(device)
       outputs = net(inputs)
-      loss = net.calc_loss(outputs, targets, optim_steps)
+      trunk_loss = net.calc_trunk_loss(outputs[-1], targets, optim_steps)
 
-      test_loss += loss.item()
+      test_loss += trunk_loss.item()
       last_output = outputs[-1]
       _, predicted = last_output.max(1)
       total += targets.size(0)

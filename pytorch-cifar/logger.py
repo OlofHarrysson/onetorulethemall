@@ -78,6 +78,25 @@ class Logger():
     self.viz.heatmap(X=data, win='weights', opts=opts)
 
 
+  def log_accuracy_per_class(self, cls_correct, cls_tot, classes):
+    # Accuracy / class
+    a, b = cls_correct.astype(np.float32), cls_tot
+    with np.errstate(divide='ignore', invalid='ignore'):
+      c = np.true_divide(a,b)
+      c[c == np.inf] = 0
+      c = np.nan_to_num(c)
+
+    rownames = ['2nd', '3rd', 'Last']
+    title = 'Accuracy per Class'
+    opts = dict(title=title, columnnames=list(classes), rownames=rownames, layoutopts={'plotly': {'legend': {'x':0, 'y':0}}})
+    self.viz.heatmap(X=c, win=title, opts=opts)
+
+
+  def log_prediction_per_class(self, cls_pred, classes):
+    rownames = ['2nd', '3rd', 'Last']
+    title = 'Prediction Per Class'
+    opts = dict(title=title, columnnames=list(classes), rownames=rownames, layoutopts={'plotly': {'legend': {'x':0, 'y':0}}})
+    self.viz.heatmap(X=cls_pred, win=title, opts=opts)
 
 
 class BaselineLogger():

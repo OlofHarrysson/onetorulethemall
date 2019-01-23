@@ -41,6 +41,8 @@ class ResNet18Branch(nn.Module):
     n_classes = len(classes)
     
     self.ce_loss = nn.CrossEntropyLoss()
+    self.be_loss = nn.BCELoss()
+    self.sigmoid = nn.Sigmoid()
 
     b2 = Branch(128, n_classes, kern_size=3)
     b3 = Branch(256, n_classes, kern_size=2) # TODO: To small fmap
@@ -48,8 +50,12 @@ class ResNet18Branch(nn.Module):
     self.branches = nn.Sequential(*[b2, b3])
 
     n_pred_layers = 3 # branches + final
+    self.n_pred_layers = n_pred_layers
     self.pred_weights = np.full((n_pred_layers, n_classes), 1/n_pred_layers)
+    self.class_correct = np.full((n_pred_layers, n_classes), 0)
+    self.class_total = list(0. for i in range(n_classes))
 
+    self.class_predicted = np.full((n_pred_layers, n_classes), 0)
 
   def forward(self, x):
     fmaps = self.resnet18.forward(x)
@@ -71,16 +77,38 @@ class ResNet18Branch(nn.Module):
   def w_predict(self, preds, labels, step, is_train=False):
     labels = labels.cpu()
 
+    # Add to seen classes
+    for i in range(labels.size(0)):
+      label = labels[i]
+      self.class_total[label] += 1
+
+
     acc = []
     w_preds = []
     numpy_preds = []
+    # non_softmax_preds = []
     for layer, pred in enumerate(preds):
       pred = pred.cpu()
-      pred = self.softmax(pred)
-      values, indices = pred.max(1)
-      # acc_layer = indices.eq(labels).sum().item() / pred.size(0)
+      
+      # Last layer uses softmax preds
+      if layer == len(preds) - 1:
+        pred = self.softmax(pred)
+      else:
+        pred = self.sigmoid(pred)
 
+      values, indices = pred.max(1)
       correct = (indices == labels).squeeze()
+
+      # Classes predicted
+      for pred_i in indices:
+        self.class_predicted[layer][pred_i] += 1
+
+      # Classes correct
+      for i in range(correct.size(0)):
+        label = labels[i]
+        self.class_correct[layer][label] += correct[i].item()
+
+
       correct = np.array(correct)
       acc.append(np.sum(correct) / correct.size)
 
@@ -89,6 +117,7 @@ class ResNet18Branch(nn.Module):
       w_preds.append(w_pred)
 
       numpy_preds.append(pred_tmp)
+      # non_softmax_preds.append(pred_org.detach().numpy())
 
     # Weighted Acc
     weighted_pred = sum(w_preds)
@@ -100,6 +129,8 @@ class ResNet18Branch(nn.Module):
     self.logger.log_accuracy_per_layer(acc, step)
     self.logger.log_accuracy(w_acc, step)
     self.logger.log_heatmap(self.pred_weights, self.classes)
+    self.logger.log_accuracy_per_class(self.class_correct, self.class_total, self.classes)
+    self.logger.log_prediction_per_class(self.class_predicted, self.classes)
 
     if is_train:
       self.update_pred_weights(numpy_preds, labels)
@@ -115,9 +146,10 @@ class ResNet18Branch(nn.Module):
 
     labels = labels.numpy()
 
-    # For every layer softmax prediction
+    # For every layer prediction
     for i, layer_pred in enumerate(preds):
       pred_per_class = defaultdict(lambda: [])
+
 
       # Take prediction (0,1) for labels
       for j, label in enumerate(labels):
@@ -140,16 +172,31 @@ class ResNet18Branch(nn.Module):
     weights = weights/weights.sum(0)
     self.pred_weights = weights
 
-  def calc_loss(self, preds, labels, step):
+  def calc_trunk_loss(self, preds, labels, step):
     # TODO: Loss lambdas?
     # Paper updated layers based on weight * loss. Low weight meant we shouldn't really think about loss to much. Also set a minimum weight of s/#layers. This was done so a layer could recover if bad in start.
-    
-    losses = []
-    for loss_lambda, pred in enumerate(preds):
-      losses.append(self.ce_loss(pred, labels))
+  
+    loss = self.ce_loss(preds, labels)
 
-    self.logger.save_average_loss(losses, step)
-    self.logger.save_loss_stacked(losses, step)
+    # self.logger.save_average_loss(losses, step)
+    # self.logger.save_loss_stacked(losses, step)
+
+    return loss
+
+
+  def calc_branch_loss(self, preds, labels, step):
+    losses = []
+    for pred in preds:
+      values, indices = pred.max(1)
+      values = self.sigmoid(values)
+      correct = (indices == labels).type(torch.FloatTensor)
+      correct = correct.to('cuda')
+
+      losses.append(self.be_loss(values, correct))
+
+
+    # self.logger.save_average_loss(losses, step)
+    # self.logger.save_loss_stacked(losses, step)
 
     return sum(losses)
 
@@ -159,3 +206,12 @@ class ResNet18Branch(nn.Module):
 
   def log_accuracies(self, acc, w_acc, epoch):
     self.logger.log_test_accuracies(acc, w_acc, epoch)
+
+  def reset_class_acc(self):
+    n_classes = len(self.classes)
+    self.class_correct = np.full((self.n_pred_layers, n_classes), 0)
+    self.class_total = list(0. for i in range(n_classes))
+
+    self.class_predicted = np.full((self.n_pred_layers, n_classes), 0)
+
+    self.pred_weights = np.full((self.n_pred_layers, n_classes), 1/self.n_pred_layers)

@@ -116,6 +116,7 @@ class Mymodel(nn.Module):
 
     # Softmax might be bad in this situation. A layer should be able to express that it isn't sure on ANY class. What can we replace softmax with and would it help something? Sigmoid 0-1? Make sure it works with pred_weights
 
+
     # Another idea would be to have the companion predictors not drive backprop but only do the best they've got given the feature maps they have. So only train the fully connected / small branch.
 
 
