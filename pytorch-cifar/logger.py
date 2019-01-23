@@ -71,6 +71,15 @@ class Logger():
     self.viz.line(X=[epoch], Y=data, update='append', win=title, opts=opts)
 
 
+  def log_ship_comp(self, w_acc, last_acc, step):
+    title = 'Ship Accuracies'
+    layoutopts = {'plotly': {'legend': {'x':0, 'y':1}}}
+    opts = dict(title=title, legend=['Last Layer Accuracy', 'Weighted Accuracy'], layoutopts=layoutopts)
+    data = np.array([last_acc, w_acc]).reshape(1, -1)
+    self.viz.line(X=[step], Y=data, update='append', win=title, opts=opts)
+
+
+
   def log_accuracy_per_layer(self, accuracies, step):
     accuracies = np.array(accuracies).reshape(-1, 1).T
 

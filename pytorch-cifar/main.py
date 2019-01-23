@@ -95,6 +95,7 @@ def train(epoch, optim_steps):
   net.train()
   net.set_logger_mode('train')
   net.reset_class_acc()
+  net.reset_ship_acc()
   train_loss = 0
   correct = 0
   total = 0
@@ -129,12 +130,15 @@ def train(epoch, optim_steps):
     # if optim_steps % 10 == 0:
     #   break
 
+ 
   return optim_steps
 
 def test(epoch, optim_steps):
   global best_acc
   net.eval()
   net.set_logger_mode('val')
+  net.reset_ship_acc()
+
   test_loss = 0
   correct = 0
   total = 0

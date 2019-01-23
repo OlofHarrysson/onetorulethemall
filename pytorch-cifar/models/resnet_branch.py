@@ -95,6 +95,7 @@ class ResNet18Branch(nn.Module):
 
 
     acc = []
+    corrects = []
     w_preds = []
     numpy_preds = []
     max_conf_per_layer = []
@@ -125,6 +126,7 @@ class ResNet18Branch(nn.Module):
 
       correct = np.array(correct)
       acc.append(np.sum(correct) / correct.size)
+      corrects.append(np.sum(correct))
 
       pred_tmp = pred.detach().numpy()
       w_pred = pred_tmp * self.pred_weights[layer]
@@ -144,14 +146,36 @@ class ResNet18Branch(nn.Module):
     ship_acc = ship_corr.eq(is_ship).numpy()
     self.ship_acc = np.append(self.ship_acc, ship_acc)
 
+    # print(is_ship)
     # weighted_pred = self.predict_with_best_layer(numpy_preds)
-    weighted_pred = self.ship_predict(numpy_preds[-1], is_ship)
+    weighted_pred = self.ship_predict(numpy_preds[-1].copy(), is_ship)
+    
+    # if step % 50 == 0:
+    #   print("ABOBOOBOBO")
+    #   print(numpy_preds[-1])
+    #   print(weighted_pred)
+    # qwe
+
+    asdasdasd make confusion matric already
 
     # Weighted Acc
     # weighted_pred = sum(w_preds)
+    last_layer_pred_ind = np.argmax(numpy_preds[-1], axis=1)
     indices = np.argmax(weighted_pred, axis=1)
+
+    # if not np.array_equal(indices, last_layer_pred_ind):
+    #   print("HEJJEJE")
+    #   print(indices)
+    #   print(last_layer_pred_ind)
+
     w_correct = (indices == labels.numpy()).astype(np.int64)
     w_acc = np.sum(w_correct) / w_correct.size
+
+    last_correct = (last_layer_pred_ind == labels.numpy()).astype(np.int64)
+    last_acc = np.sum(last_correct) / last_correct.size
+
+
+    # print('Weight: {}   Last: {}'.format(w_acc, last_acc))
 
     self.logger.log_ship_accuracy(self.ship_acc, step)
     self.logger.log_accuracy_per_layer(acc, step)
@@ -163,7 +187,13 @@ class ResNet18Branch(nn.Module):
 
     if is_train:
       self.update_pred_weights(numpy_preds, labels)
+      self.logger.log_ship_comp(w_acc, last_acc, step)
 
+
+    # If I answer at random except the when is_ship predicts 1 I should get 0.9 * 0.1 for random + 0.1 * 1 (if ship is all_knowing) = 0.09+0.1 = 0.19
+    # I get like 0.11
+
+    # Or is this wrong. if is_ship is untrained it should have 90% success rate by saying no to all. 0.9*0.1 + 0.1*0.9 = 0.18 but this is all random so should be 0.1. 
     return np.sum(w_correct)
 
   def ship_predict(self, last_pred, is_ship_pred):
@@ -175,6 +205,9 @@ class ResNet18Branch(nn.Module):
         # print(last_pred)
         # input("PRESS KEY TO CONTINUE.")
         last_pred[batch_i, 8] = 1.
+      else:
+        last_pred[batch_i, 8] = 0.
+
         # print(last_pred)
         # input("PRESS KEY TO CONTINUE.")
     # print(is_ship_pred)
@@ -295,3 +328,6 @@ class ResNet18Branch(nn.Module):
     self.class_predicted = np.full((self.n_pred_layers, n_classes), 0)
 
     self.pred_weights = np.full((self.n_pred_layers, n_classes), 1/self.n_pred_layers)
+
+  def reset_ship_acc(self):
+    self.ship_acc = np.array([])
