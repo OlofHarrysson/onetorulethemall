@@ -16,6 +16,7 @@ import argparse
 from models.resnet import ResNet18
 from models.resnet_branch import ResNet18Branch
 from utils import progress_bar
+import numpy as np
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
@@ -98,6 +99,7 @@ def train(epoch, optim_steps):
   correct = 0
   total = 0
   for batch_idx, (inputs, targets) in enumerate(trainloader):
+
     inputs, targets = inputs.to(device), targets.to(device)
     # optimizer.zero_grad()
     branch_optimizer.zero_grad()
@@ -126,7 +128,7 @@ def train(epoch, optim_steps):
 
     # if optim_steps % 10 == 0:
     #   break
-    
+
   return optim_steps
 
 def test(epoch, optim_steps):

@@ -57,6 +57,8 @@ class ResNet18Branch(nn.Module):
 
     self.class_predicted = np.full((n_pred_layers, n_classes), 0)
 
+    self.ship_acc = np.array([])
+
   def forward(self, x):
     fmaps = self.resnet18.forward(x)
 
@@ -96,6 +98,7 @@ class ResNet18Branch(nn.Module):
     w_preds = []
     numpy_preds = []
     max_conf_per_layer = []
+    ship_accs = []
     for layer, pred in enumerate(preds):
       pred = pred.cpu()
       
@@ -109,6 +112,7 @@ class ResNet18Branch(nn.Module):
       values, indices = pred.max(1)
       correct = (indices == labels).squeeze()
 
+      
       # Classes predicted
       for pred_i in indices:
         self.class_predicted[layer][pred_i] += 1
@@ -131,7 +135,17 @@ class ResNet18Branch(nn.Module):
       max_conf_per_layer.append(max_pred)
 
 
-    weighted_pred = self.predict_with_best_layer(numpy_preds)
+    # Ship stuff
+    ship_layer = preds[-2].cpu()
+    is_ship = 0.5 < ship_layer[:, 8] # Ship
+    targ = torch.ones_like(labels) * 8
+    ship_corr = (targ == labels)
+
+    ship_acc = ship_corr.eq(is_ship).numpy()
+    self.ship_acc = np.append(self.ship_acc, ship_acc)
+
+    # weighted_pred = self.predict_with_best_layer(numpy_preds)
+    weighted_pred = self.ship_predict(numpy_preds[-1], is_ship)
 
     # Weighted Acc
     # weighted_pred = sum(w_preds)
@@ -139,7 +153,7 @@ class ResNet18Branch(nn.Module):
     w_correct = (indices == labels.numpy()).astype(np.int64)
     w_acc = np.sum(w_correct) / w_correct.size
 
-
+    self.logger.log_ship_accuracy(self.ship_acc, step)
     self.logger.log_accuracy_per_layer(acc, step)
     # self.logger.max_conf_per_layer(max_conf_per_layer, step)
     self.logger.log_accuracy(w_acc, step)
@@ -152,6 +166,22 @@ class ResNet18Branch(nn.Module):
 
     return np.sum(w_correct)
 
+  def ship_predict(self, last_pred, is_ship_pred):
+    is_ship_pred = is_ship_pred.numpy().astype(np.float32)
+    for batch_i, is_ship in enumerate(is_ship_pred):
+      # print(is_ship)
+      if is_ship == 1.:
+        # print("Is ship", is_ship)
+        # print(last_pred)
+        # input("PRESS KEY TO CONTINUE.")
+        last_pred[batch_i, 8] = 1.
+        # print(last_pred)
+        # input("PRESS KEY TO CONTINUE.")
+    # print(is_ship_pred)
+    # print(last_pred.shape)
+    # print(is_ship_pred.shape)
+
+    return last_pred
 
   def update_pred_weights(self, preds, labels):
     weights = self.pred_weights
@@ -229,12 +259,19 @@ class ResNet18Branch(nn.Module):
     # l1_loss = nn.L1Loss()
     losses = []
     for pred in preds:
-      values, indices = pred.max(1)
-      values = self.sigmoid(values)
-      correct = (indices == labels).type(torch.FloatTensor)
+      # values, indices = pred.max(1)
+      # values = self.sigmoid(values)
+      is_ship = self.sigmoid(pred[:, 8])
+
+      targ = torch.ones_like(labels) * 8
+      correct = (targ == labels).type(torch.FloatTensor)
       correct = correct.to('cuda')
 
-      losses.append(self.be_loss(values, correct))
+
+      # correct = (indices == labels).type(torch.FloatTensor)
+      # correct = correct.to('cuda')
+
+      losses.append(self.be_loss(is_ship, correct))
       # losses.append(l1_loss(values, correct))
 
 

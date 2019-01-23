@@ -56,6 +56,13 @@ class Logger():
     opts = dict(title=title)
     self.viz.line(X=[step], Y=[data], update='append', win=title, opts=opts)
 
+
+  def log_ship_accuracy(self, data, step):
+    data = data.mean()
+    title = 'Ship Accuracy ' + self.mode
+    opts = dict(title=title)
+    self.viz.line(X=[step], Y=[data], update='append', win=title, opts=opts)
+
   def log_test_accuracies(self, acc, w_acc, epoch):
     title = 'Average Test Accuracies'
     layoutopts = {'plotly': {'legend': {'x':0, 'y':1}}}
