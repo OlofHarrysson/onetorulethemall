@@ -72,6 +72,14 @@ class Logger():
     self.viz.line(X=[step], Y=accuracies, update='append', win=title, opts=opts)
 
 
+  def max_conf_per_layer(self, confs, step):
+    confs = np.array(confs).reshape(-1, 1).T
+
+    title = 'Max Confidence per Layer ' + self.mode
+    opts = dict(title=title)
+    self.viz.line(X=[step], Y=confs, update='append', win=title, opts=opts)
+
+
   def log_heatmap(self, data, classes):
     rownames = ['2nd', '3rd', 'Last']
     opts = dict(title='Prediction Weights', columnnames=list(classes), rownames=rownames, layoutopts={'plotly': {'legend': {'x':0, 'y':0}}})

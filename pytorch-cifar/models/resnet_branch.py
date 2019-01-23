@@ -77,6 +77,15 @@ class ResNet18Branch(nn.Module):
   def w_predict(self, preds, labels, step, is_train=False):
     labels = labels.cpu()
 
+    # TODO: Rewries the weights with accuracies
+    # cls_correct, cls_tot = self.class_correct, self.class_total
+    # a, b = cls_correct.astype(np.float32), cls_tot
+    # with np.errstate(divide='ignore', invalid='ignore'):
+    #   c = np.true_divide(a,b)
+    #   c[c == np.inf] = 0
+    #   c = np.nan_to_num(c)
+    # self.pred_weights = c
+
     # Add to seen classes
     for i in range(labels.size(0)):
       label = labels[i]
@@ -86,7 +95,7 @@ class ResNet18Branch(nn.Module):
     acc = []
     w_preds = []
     numpy_preds = []
-    # non_softmax_preds = []
+    max_conf_per_layer = []
     for layer, pred in enumerate(preds):
       pred = pred.cpu()
       
@@ -94,6 +103,7 @@ class ResNet18Branch(nn.Module):
       if layer == len(preds) - 1:
         pred = self.softmax(pred)
       else:
+        # pred = self.softmax(pred)
         pred = self.sigmoid(pred)
 
       values, indices = pred.max(1)
@@ -117,16 +127,21 @@ class ResNet18Branch(nn.Module):
       w_preds.append(w_pred)
 
       numpy_preds.append(pred_tmp)
-      # non_softmax_preds.append(pred_org.detach().numpy())
+      max_pred = pred_tmp.max(axis=1).mean()
+      max_conf_per_layer.append(max_pred)
+
+
+    weighted_pred = self.predict_with_best_layer(numpy_preds)
 
     # Weighted Acc
-    weighted_pred = sum(w_preds)
+    # weighted_pred = sum(w_preds)
     indices = np.argmax(weighted_pred, axis=1)
     w_correct = (indices == labels.numpy()).astype(np.int64)
     w_acc = np.sum(w_correct) / w_correct.size
 
 
     self.logger.log_accuracy_per_layer(acc, step)
+    # self.logger.max_conf_per_layer(max_conf_per_layer, step)
     self.logger.log_accuracy(w_acc, step)
     self.logger.log_heatmap(self.pred_weights, self.classes)
     self.logger.log_accuracy_per_class(self.class_correct, self.class_total, self.classes)
@@ -172,6 +187,32 @@ class ResNet18Branch(nn.Module):
     weights = weights/weights.sum(0)
     self.pred_weights = weights
 
+  def predict_with_best_layer(self, preds):
+    cls_correct, cls_tot = self.class_correct, self.class_total
+    a, b = cls_correct.astype(np.float32), cls_tot
+    with np.errstate(divide='ignore', invalid='ignore'):
+      c = np.true_divide(a,b)
+      c[c == np.inf] = 0
+      c = np.nan_to_num(c)
+    
+    layer_acc = c
+    last_layer_acc = layer_acc[-1]
+    last_preds = preds[-1]
+
+    # Best layer per class
+    best_layer_acc = np.argmax(layer_acc, axis=0)
+    # print(best_layer_acc)
+
+    # Replace all class_preds in batch with best_layers pred
+    for cls_i, best_layer in enumerate(best_layer_acc):
+      best_preds = preds[best_layer][:, cls_i]
+      # print(best_preds)
+      # print(best_preds.shape)
+      # print(last_preds.shape)
+      last_preds[:, cls_i] = best_preds
+
+    return last_preds
+
   def calc_trunk_loss(self, preds, labels, step):
     # TODO: Loss lambdas?
     # Paper updated layers based on weight * loss. Low weight meant we shouldn't really think about loss to much. Also set a minimum weight of s/#layers. This was done so a layer could recover if bad in start.
@@ -185,6 +226,7 @@ class ResNet18Branch(nn.Module):
 
 
   def calc_branch_loss(self, preds, labels, step):
+    # l1_loss = nn.L1Loss()
     losses = []
     for pred in preds:
       values, indices = pred.max(1)
@@ -193,6 +235,7 @@ class ResNet18Branch(nn.Module):
       correct = correct.to('cuda')
 
       losses.append(self.be_loss(values, correct))
+      # losses.append(l1_loss(values, correct))
 
 
     # self.logger.save_average_loss(losses, step)
