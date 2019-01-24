@@ -106,10 +106,10 @@ def ResNet34():
 def ResNet50():
     return ResNet(Bottleneck, [3,4,6,3])
 
-def ResNet101():
+def ResNet101Copy():
     return ResNet(Bottleneck, [3,4,23,3])
 
-def ResNet152():
+def ResNet152Copy():
     return ResNet(Bottleneck, [3,8,36,3])
 
 

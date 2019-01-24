@@ -1,5 +1,6 @@
 import visdom
 import numpy as np
+from sklearn.metrics import confusion_matrix
 
 
 # Replay weight dominance
@@ -82,8 +83,20 @@ class Logger():
 
   def log_heatmap(self, data, classes):
     rownames = ['2nd', '3rd', 'Last']
-    opts = dict(title='Prediction Weights', columnnames=list(classes), rownames=rownames, layoutopts={'plotly': {'legend': {'x':0, 'y':0}}})
+    opts = dict(title='Prediction Weights', columnnames=list(classes), rownames=rownames, layoutopts={'plotly': {'legend': {'x':0, 'y':-0.2}}})
     self.viz.heatmap(X=data, win='weights', opts=opts)
+
+
+  def log_confusion_matrices(self, labels, preds, classes):
+    rownames = ['2nd', '3rd', 'Last']
+    for layer_i, pred in preds.items():
+      layer = rownames[layer_i]
+      title = '{} Layer Confusion Matrix'.format(layer)
+
+      cm = confusion_matrix(labels, pred)
+      cm = cm / cm.astype(np.float).sum(axis=1)
+      opts = dict(xmin=0, xmax=1, title=title, columnnames=list(classes), rownames=list(classes), layoutopts={'plotly': {'legend': {'x':0, 'y':-0.2}}})
+      self.viz.heatmap(X=cm, win=title, opts=opts)
 
 
   def log_accuracy_per_class(self, cls_correct, cls_tot, classes):
@@ -95,15 +108,47 @@ class Logger():
       c = np.nan_to_num(c)
 
     rownames = ['2nd', '3rd', 'Last']
-    title = 'Accuracy per Class'
-    opts = dict(title=title, columnnames=list(classes), rownames=rownames, layoutopts={'plotly': {'legend': {'x':0, 'y':0}}})
+    title = 'Recall per Class'
+    opts = dict(xmin=0, xmax=1, title=title, columnnames=list(classes), rownames=rownames, layoutopts={'plotly': {'legend': {'x':0, 'y':-0.2}}})
     self.viz.heatmap(X=c, win=title, opts=opts)
 
+    return c
+
+  def log_precision_per_class(self, cls_correct, cls_pred, classes):
+    # Right prediction / #predicts per class
+    a, b = cls_correct.astype(np.float32), cls_pred
+    with np.errstate(divide='ignore', invalid='ignore'):
+      c = np.true_divide(a,b)
+      c[c == np.inf] = 0
+      c = np.nan_to_num(c)
+
+    rownames = ['2nd', '3rd', 'Last']
+    title = 'Precision per Class'
+    opts = dict(xmin=0, xmax=1, title=title, columnnames=list(classes), rownames=rownames, layoutopts={'plotly': {'legend': {'x':0, 'y':-0.2}}})
+    self.viz.heatmap(X=c, win=title, opts=opts)
+
+    return c
+
+
+  def log_f1_per_class(self, preci, recall, classes):
+    numerator = np.multiply(preci, recall)
+    denominator = np.add(preci, recall)
+
+    # Right prediction / #predicts per class
+    with np.errstate(divide='ignore', invalid='ignore'):
+      c = 2 * np.true_divide(numerator, denominator)
+      c[c == np.inf] = 0
+      c = np.nan_to_num(c)
+
+    rownames = ['2nd', '3rd', 'Last']
+    title = 'F1 per Class'
+    opts = dict(xmin=0, xmax=1, title=title, columnnames=list(classes), rownames=rownames, layoutopts={'plotly': {'legend': {'x':0, 'y':-0.2}}})
+    self.viz.heatmap(X=c, win=title, opts=opts)
 
   def log_prediction_per_class(self, cls_pred, classes):
     rownames = ['2nd', '3rd', 'Last']
     title = 'Prediction Per Class'
-    opts = dict(title=title, columnnames=list(classes), rownames=rownames, layoutopts={'plotly': {'legend': {'x':0, 'y':0}}})
+    opts = dict(title=title, columnnames=list(classes), rownames=rownames, layoutopts={'plotly': {'legend': {'x':0, 'y':-0.2}}})
     self.viz.heatmap(X=cls_pred, win=title, opts=opts)
 
 

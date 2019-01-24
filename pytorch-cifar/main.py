@@ -43,7 +43,7 @@ transform_test = transforms.Compose([
 ])
 
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform_train)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_test)
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
@@ -80,7 +80,7 @@ for name, par in net.named_parameters():
 
 
 # Train main "only"
-# optimizer = optim.SGD(other_params, lr=args.lr, momentum=0.9, weight_decay=5e-4)
+optimizer = optim.SGD(other_params, lr=args.lr, momentum=0.9, weight_decay=5e-4)
 branch_optimizer = optim.SGD(branch_params, lr=args.lr, momentum=0.9, weight_decay=5e-4)
 
 
@@ -99,14 +99,14 @@ def train(epoch, optim_steps):
   total = 0
   for batch_idx, (inputs, targets) in enumerate(trainloader):
     inputs, targets = inputs.to(device), targets.to(device)
-    # optimizer.zero_grad()
+    optimizer.zero_grad()
     branch_optimizer.zero_grad()
     outputs = net(inputs)
     trunk_loss = net.calc_trunk_loss(outputs[-1], targets, optim_steps)
     branch_loss = net.calc_branch_loss(outputs[:-1], targets, optim_steps)
 
-    # trunk_loss.backward()
-    # optimizer.step()
+    trunk_loss.backward()
+    optimizer.step()
     
     branch_loss.backward()
     branch_optimizer.step()
@@ -124,8 +124,12 @@ def train(epoch, optim_steps):
     net.w_predict(outputs, targets, optim_steps, is_train=True)
     optim_steps += 1
 
-    # if optim_steps % 10 == 0:
-    #   break
+    if optim_steps % 10 == 0:
+      break
+
+    del trunk_loss
+    del branch_loss
+    del outputs
     
   return optim_steps
 

@@ -9,7 +9,7 @@ Reference:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .resnet_copy import ResNet18Copy
+from .resnet_copy import ResNet18Copy, ResNet101Copy
 import numpy as np
 from collections import defaultdict
 from logger import Logger
@@ -34,7 +34,7 @@ class Branch(nn.Module):
 class ResNet18Branch(nn.Module):
   def __init__(self, classes):
     super(ResNet18Branch, self).__init__()
-    self.resnet18 = ResNet18Copy()
+    self.resnet18 = ResNet101Copy()
     self.softmax = nn.Softmax()
     self.logger = Logger()
     self.classes = classes
@@ -57,8 +57,12 @@ class ResNet18Branch(nn.Module):
 
     self.class_predicted = np.full((n_pred_layers, n_classes), 0)
 
+    self.predictions = defaultdict(lambda: [])
+    self.all_labels = []
+
   def forward(self, x):
     fmaps = self.resnet18.forward(x)
+    return fmaps
 
     class_preds = []
     # Not last fmap
@@ -86,6 +90,8 @@ class ResNet18Branch(nn.Module):
     #   c = np.nan_to_num(c)
     # self.pred_weights = c
 
+    self.all_labels.extend(labels.numpy())
+
     # Add to seen classes
     for i in range(labels.size(0)):
       label = labels[i]
@@ -108,6 +114,9 @@ class ResNet18Branch(nn.Module):
 
       values, indices = pred.max(1)
       correct = (indices == labels).squeeze()
+
+      # For confusion matrix
+      self.predictions[layer].extend(indices.numpy())
 
       # Classes predicted
       for pred_i in indices:
@@ -144,8 +153,13 @@ class ResNet18Branch(nn.Module):
     # self.logger.max_conf_per_layer(max_conf_per_layer, step)
     self.logger.log_accuracy(w_acc, step)
     self.logger.log_heatmap(self.pred_weights, self.classes)
-    self.logger.log_accuracy_per_class(self.class_correct, self.class_total, self.classes)
+    recall = self.logger.log_accuracy_per_class(self.class_correct, self.class_total, self.classes)
+    preci = self.logger.log_precision_per_class(self.class_correct, self.class_predicted, self.classes)
     self.logger.log_prediction_per_class(self.class_predicted, self.classes)
+
+    self.logger.log_f1_per_class(preci, recall, self.classes)
+
+    self.logger.log_confusion_matrices(self.all_labels, self.predictions, self.classes)
 
     if is_train:
       self.update_pred_weights(numpy_preds, labels)
@@ -188,8 +202,17 @@ class ResNet18Branch(nn.Module):
     self.pred_weights = weights
 
   def predict_with_best_layer(self, preds):
-    cls_correct, cls_tot = self.class_correct, self.class_total
-    a, b = cls_correct.astype(np.float32), cls_tot
+    # Uses precision instead of acc now
+    # What we do now is saying - you layer have the best precision so you are in charge for this class - even with poor recall. With low recall it means that it doesn't predict the class often enough - it's a bit careful with its preds.
+    # What we instead want to do is say - hey layer, if you are sure this is a class we trust you due to your good precision. If you however don't think it's your speciallity class then don't bother helping out.
+
+    # We want to prevent last layer to predict cat all the time.
+    # Cant trust last layer when it says cat=1 - bad precision. We can trust companion layer when it says cat=1 - just it doesn't do that very often. We can't trust companion layer when it says cat=0 because low recall. We need someone who can say cat=0 and that we trust - someone with high recall. It might not say cat=0 very often - but hopefully often enough to change some 1->0.
+
+
+    # Cant trust last layer when it says frog=0 - bad recall. Need someone with high precision who can say - this is a frog. Change 0->1.
+
+    a, b = self.class_correct.astype(np.float32), self.class_predicted
     with np.errstate(divide='ignore', invalid='ignore'):
       c = np.true_divide(a,b)
       c[c == np.inf] = 0
@@ -201,14 +224,10 @@ class ResNet18Branch(nn.Module):
 
     # Best layer per class
     best_layer_acc = np.argmax(layer_acc, axis=0)
-    # print(best_layer_acc)
 
     # Replace all class_preds in batch with best_layers pred
     for cls_i, best_layer in enumerate(best_layer_acc):
       best_preds = preds[best_layer][:, cls_i]
-      # print(best_preds)
-      # print(best_preds.shape)
-      # print(last_preds.shape)
       last_preds[:, cls_i] = best_preds
 
     return last_preds
@@ -258,3 +277,6 @@ class ResNet18Branch(nn.Module):
     self.class_predicted = np.full((self.n_pred_layers, n_classes), 0)
 
     self.pred_weights = np.full((self.n_pred_layers, n_classes), 1/self.n_pred_layers)
+
+    self.predictions = defaultdict(lambda: [])
+    self.all_labels = []
