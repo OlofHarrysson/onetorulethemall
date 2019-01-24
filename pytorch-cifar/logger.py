@@ -1,7 +1,7 @@
 import visdom
 import numpy as np
 from sklearn.metrics import confusion_matrix
-
+# import plotly.graph_objs as go
 
 # Replay weight dominance
 # Plot prediction certanty or something?
@@ -79,6 +79,20 @@ class Logger():
     title = 'Max Confidence per Layer ' + self.mode
     opts = dict(title=title)
     self.viz.line(X=[step], Y=confs, update='append', win=title, opts=opts)
+
+  def log_conf_correct_or_not(self, confs, correct):
+    confs = np.array(confs)
+    correct = np.array(correct)
+    right = confs[correct==1]
+    wrong = confs[correct==0]
+
+    title = 'Right Last Layer Confs ' + self.mode
+    opts = dict(title=title)
+    self.viz.boxplot(X=right, win=title, opts=opts)
+
+    title = 'Wrong Last Layer Confs ' + self.mode
+    opts = dict(title=title)
+    self.viz.boxplot(X=wrong, win=title, opts=opts)
 
 
   def log_heatmap(self, data, classes):

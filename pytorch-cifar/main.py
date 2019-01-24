@@ -43,7 +43,7 @@ transform_test = transforms.Compose([
 ])
 
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform_train)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True, num_workers=2)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_test)
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
@@ -103,13 +103,13 @@ def train(epoch, optim_steps):
     branch_optimizer.zero_grad()
     outputs = net(inputs)
     trunk_loss = net.calc_trunk_loss(outputs[-1], targets, optim_steps)
-    branch_loss = net.calc_branch_loss(outputs[:-1], targets, optim_steps)
+    # branch_loss = net.calc_branch_loss(outputs[:-1], targets, optim_steps)
 
     trunk_loss.backward()
     optimizer.step()
     
-    branch_loss.backward()
-    branch_optimizer.step()
+    # branch_loss.backward()
+    # branch_optimizer.step()
 
     train_loss += trunk_loss.item()
     last_output = outputs[-1]
@@ -124,11 +124,11 @@ def train(epoch, optim_steps):
     net.w_predict(outputs, targets, optim_steps, is_train=True)
     optim_steps += 1
 
-    if optim_steps % 10 == 0:
-      break
+    # if optim_steps % 10 == 0:
+    #   break
 
     del trunk_loss
-    del branch_loss
+    # del branch_loss
     del outputs
     
   return optim_steps
@@ -137,6 +137,7 @@ def test(epoch, optim_steps):
   global best_acc
   net.eval()
   net.set_logger_mode('val')
+  net.reset_class_acc()
   test_loss = 0
   correct = 0
   total = 0

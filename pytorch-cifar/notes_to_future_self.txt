@@ -1,0 +1,26 @@
+The premise of the project is that we could benefit from companion/branch classifiers in the intermediate layers of the network.
+
+# Resnet info - https://medium.com/@14prakash/understanding-and-implementing-architectures-of-resnet-and-resnext-for-state-of-the-art-image-cf51669e1624
+
+Quote
+If the identity mapping is optimal, We can easily push the residuals to zero (F(x) = 0) than to fit an identity mapping (x, input=output) by a stack of non-linear layers. In simple language it is very easy to come up with a solution like F(x) =0 rather than F(x)=x using stack of non-linear cnn layers as function (Think about it). So, this function F(x) is what the authors called Residual function.
+
+
+
+So resnets help in training deep networks which is better than shallow ones. They don't become to deep though since you can always do F(x)=0 -> and just use the previous filters.
+
+Before resnets, too many layers could be problematic. We might already find the optimal featuremaps halfway through the network and therefor wouldn't need any more layers. More layers just made it worse.
+
+I'm arguing that this is still happening in resnets. Say we have two classes, one easy class and one hard class. The easy class doesn't need many layers to figure out but the hard one does. Resnets would probably still figure the easy class out first but still can't put F(x)=0 since the hard class needs more layers. The weight filters can't discriminate between an easy/hard class so would output F(x) != 0 for them both alike.
+
+I want to do classification on the easy examples / classes before they get pushed to far through the network and the signal is disrupted.
+
+So far I've tried different approaches of having the branch classifiers help the main classifier. Either that they get weighted accordingly to their past performance, or the "strongest" classifier for a class gets to decide/override the main classifier. I haven't been able to improve over the benchmark with is only using the main classifier.
+
+I've looked at densenets that send all feature maps to every layer ahead of it. That avoids the problem of feature maps being degregaded along the layers. AND it also benefits from having some easy feature maps that can be mixed with late featuremaps. Seems really good. But very memory intensive.
+
+Some ideas.
+We could use the earlier layers to predict the easy examples - and if they do it with enough confidence/consistency we will settle with that and not send the signal to the next layers (or at least not incur any loss). The hard examples are sent further and the network is allowed to specialise on these. Reminds me of boosting. Look at the images in the project - there are a lot of examples that the main classifier is really sure for. They might be considered easy examples.
+
+
+Create an ensamble of the branch and main classifier. I've tried the weighted one but no significant performance boost there. Problem was that weights either went to 0 or that a branch classifier was basically always a tad worse than the main -> screwed up as many results as it helped. We see that the main classifiers performance shows up in it's prediction confidences. Perhaps take help only when conf < threshhold - essentially having the branches help with hard examples. By looking at the conf images in the project we see that virtually all right predictions had a confidence of 0.7 or more. If a confidence is lower than that we probably don't want to follow the main classifiers prediction. It kinda hinges on having other classifiers that can specialize on them and become better than the main one. If they are only trained on the hard examples, well then the data aproaches 0 when performance nears 1. Still even if they aren't only fed with hard examples, they might NOT think it's a difficult sample.

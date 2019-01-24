@@ -9,7 +9,7 @@ Reference:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .resnet_copy import ResNet18Copy, ResNet101Copy
+from .resnet_copy import ResNet18Copy, ResNet101Copy, ResNet50Copy
 import numpy as np
 from collections import defaultdict
 from logger import Logger
@@ -34,7 +34,7 @@ class Branch(nn.Module):
 class ResNet18Branch(nn.Module):
   def __init__(self, classes):
     super(ResNet18Branch, self).__init__()
-    self.resnet18 = ResNet101Copy()
+    self.resnet18 = ResNet18Copy()
     self.softmax = nn.Softmax()
     self.logger = Logger()
     self.classes = classes
@@ -60,9 +60,11 @@ class ResNet18Branch(nn.Module):
     self.predictions = defaultdict(lambda: [])
     self.all_labels = []
 
+    self.confs = []
+    self.correct = []
+
   def forward(self, x):
     fmaps = self.resnet18.forward(x)
-    return fmaps
 
     class_preds = []
     # Not last fmap
@@ -115,6 +117,8 @@ class ResNet18Branch(nn.Module):
       values, indices = pred.max(1)
       correct = (indices == labels).squeeze()
 
+
+
       # For confusion matrix
       self.predictions[layer].extend(indices.numpy())
 
@@ -139,6 +143,11 @@ class ResNet18Branch(nn.Module):
       max_pred = pred_tmp.max(axis=1).mean()
       max_conf_per_layer.append(max_pred)
 
+       # Last layer
+      if layer == len(preds) - 1:
+        self.confs.extend(values.detach().numpy())
+        self.correct.extend(correct)
+
 
     weighted_pred = self.predict_with_best_layer(numpy_preds)
 
@@ -148,7 +157,7 @@ class ResNet18Branch(nn.Module):
     w_correct = (indices == labels.numpy()).astype(np.int64)
     w_acc = np.sum(w_correct) / w_correct.size
 
-
+    self.logger.log_conf_correct_or_not(self.confs, self.correct)
     self.logger.log_accuracy_per_layer(acc, step)
     # self.logger.max_conf_per_layer(max_conf_per_layer, step)
     self.logger.log_accuracy(w_acc, step)
@@ -280,3 +289,6 @@ class ResNet18Branch(nn.Module):
 
     self.predictions = defaultdict(lambda: [])
     self.all_labels = []
+
+    self.confs = []
+    self.correct = []

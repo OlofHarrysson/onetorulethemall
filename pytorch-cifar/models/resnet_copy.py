@@ -103,7 +103,7 @@ def ResNet18Copy():
 def ResNet34():
     return ResNet(BasicBlock, [3,4,6,3])
 
-def ResNet50():
+def ResNet50Copy():
     return ResNet(Bottleneck, [3,4,6,3])
 
 def ResNet101Copy():
